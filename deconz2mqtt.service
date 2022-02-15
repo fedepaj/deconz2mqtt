@@ -4,9 +4,9 @@ Requires=network.target
 
 [Service]
 Environment=PYTHONUNBUFFERED=1
-WorkingDirectory=/opt/deconz2mqtt
-ExecStart=/opt/deconz2mqtt/env/bin/python /opt/deconz2mqtt/deconz2mqtt.py --config /etc/deconz2mqtt.yaml
-User=deconz
+WorkingDirectory=/home/pi/deconz2mqtt
+ExecStart=/bin/python3 /home/pi/deconz2mqtt/deconz2mqtt.py --config /homw/pi/deconz2mqtt/deconz2mqtt.yaml
+User=pi
 
 [Install]
 WantedBy=multi-user.target

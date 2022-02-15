@@ -1,8 +1,6 @@
 import asyncio
 import websockets
 import logging
-#from hbmqtt.client import MQTTClient
-#from hbmqtt.client import ConnectException
 from asyncio_mqtt import Client, MqttError
 import json
 import yaml
@@ -45,7 +43,6 @@ async def mqtt_publisher(config: dict, message_queue: asyncio.Queue) -> None:
         log.info('Connected MQTT')
         while True:
             message = await message_queue.get()
-            log.info(f"MSG {message}")
             message_json = json.loads(message)
             t = message_json.get('t', None)
             if t is None:
@@ -75,18 +72,19 @@ async def mqtt_publisher(config: dict, message_queue: asyncio.Queue) -> None:
             # prepare mqtt payload
             mqtt_payload = event_state if event_state is not None else event_config
             # prepare mqtt topic
+            id=str(id)
             if id in mapping:
                 # mapped device
                 mqtt_topic=mapping[id][0]
-                for elem in mapping[1:]:
-                    mqtt_payload = mqtt_payload[elem]
+                for elem in mapping[id][1:]:
+                    mqtt_payload = {str(elem): mqtt_payload[elem]}
             else:
                 #fallback on default topic
                 mqtt_topic = _config_value(config, 'topic_prefix', 'deconz')
                 mqtt_topic += '/{}/{}/{}'.format(r, id, 'state' if event_state is not None else 'config')
             # econding the payload
             mqtt_payload = json.dumps(mqtt_payload).encode('utf-8')
-            log.debug('Publishing: topic={} payload={}'.format(mqtt_topic, mqtt_payload))
+            log.info('Publishing: topic={} payload={}'.format(mqtt_topic, mqtt_payload))
             await mqtt.publish(mqtt_topic, mqtt_payload)
 
 async def deconz_message_reader(config: dict, message_queue: asyncio.Queue) -> None:
