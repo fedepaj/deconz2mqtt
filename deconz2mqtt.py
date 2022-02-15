@@ -11,17 +11,22 @@ import argparse
 import os
 import ssl
 
-def _loadCerts4Client(client, certs):
+def _loadCerts4Client(certs):
     log = logging.getLogger('deconz2mqtt.mqtt_publisher')
     certsPath = os.path.expandvars(certs["certsPath"])
     caPath = os.path.join(certsPath, certs["ca"])
     certPath = os.path.join(certsPath, certs["cert"])
     keyPath = os.path.join(certsPath, certs["key"])
     log.info("Loading certs")
-    # Here we should create an sll context and pass to the constructor of the Client class, but i'm in a rush atm
-    client._client.tls_set(ca_certs=caPath,certfile=certPath,keyfile=keyPath,tls_version=ssl.PROTOCOL_TLSv1_2)
-    client._client.tls_insecure_set(True)
+    ssl_ctx = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH)
+    ssl_ctx.check_hostname = False
+    ssl_ctx.load_verify_locations(caPath)
+    ssl_ctx.load_cert_chain(
+        certfile=certPath,
+        keyfile=keyPath
+    )
     log.info("Certs ok")
+    return ssl_ctx
 
 def _config_value(config: dict, name: str, default = None):
     names = name.split('.')
@@ -35,49 +40,45 @@ def _config_value(config: dict, name: str, default = None):
 
 async def mqtt_publisher(config: dict, message_queue: asyncio.Queue) -> None:
     log = logging.getLogger('deconz2mqtt.mqtt_publisher')
-    # Instead of calling _loadCerts4Client we should create an ssl context ann pass it to the constructor
     log.info('Connecting to MQTT...')
-    try:
-        mqtt = Client(**_config_value(config, 'client'))
-        _loadCerts4Client(mqtt,_config_value(config,"certs"))
-    except Exception as e:
-        logging.exception(e)
-    log.info('Connected MQTT')
-    while True:
-        message = await message_queue.get()
-        message_json = json.loads(message)
-        t = message_json.get('t', None)
-        if t is None:
-            log.warn('Message with empty type. Message={}'.format(message))
-            continue
-        if t != 'event':
-            log.warn('Message with unsupported type={}. Message={}'.format(t, message))
-            continue
-        e = message_json.get('e', None)
-        if e != 'changed':
-            log.debug('Message with event type={} will be skipped. Only "changed" event type is supported. Message={}'.format(e, message))
-            continue
-        r = message_json.get('r', None)
-        if r is None:
-            log.warn('Message with empty resource type. Message={}'.format(message))
-            continue
-        id = message_json.get('id', None)
-        if id is None:
-            log.warn('Message without id. Message={}'.format(message))
-            continue
-        event_state = message_json.get('state', None)
-        event_config = message_json.get('config', None)
-        if event_state is None and event_config is None:
-            log.debug('Message without state or config. Message={}'.format(message))
-            continue
-        # prepare mqtt topic
-        mqtt_topic = _config_value(config, 'topic_prefix', 'deconz')
-        mqtt_topic += '/{}/{}/{}'.format(r, id, 'state' if event_state is not None else 'config')
-        # prepare mqtt payload
-        mqtt_payload = event_state if event_state is not None else event_config
-        mqtt_payload = json.dumps(mqtt_payload).encode('utf-8')
-        log.debug('Publishing: topic={} payload={}'.format(mqtt_topic, mqtt_payload))
-        await mqtt.publish(mqtt_topic, mqtt_payload)
+    async with Client(**_config_value(config, 'client'),tls_context=_loadCerts4Client(_config_value(config,"certs"))) as mqtt:
+        log.info('Connected MQTT')
+        while True:
+            message = await message_queue.get()
+            log.info(f"MSG {message}")
+            message_json = json.loads(message)
+            t = message_json.get('t', None)
+            if t is None:
+                log.warn('Message with empty type. Message={}'.format(message))
+                continue
+            if t != 'event':
+                log.warn('Message with unsupported type={}. Message={}'.format(t, message))
+                continue
+            e = message_json.get('e', None)
+            if e != 'changed':
+                log.debug('Message with event type={} will be skipped. Only "changed" event type is supported. Message={}'.format(e, message))
+                continue
+            r = message_json.get('r', None)
+            if r is None:
+                log.warn('Message with empty resource type. Message={}'.format(message))
+                continue
+            id = message_json.get('id', None)
+            if id is None:
+                log.warn('Message without id. Message={}'.format(message))
+                continue
+            event_state = message_json.get('state', None)
+            event_config = message_json.get('config', None)
+            if event_state is None and event_config is None:
+                log.debug('Message without state or config. Message={}'.format(message))
+                continue
+            # prepare mqtt topic
+            mqtt_topic = _config_value(config, 'topic_prefix', 'deconz')
+            mqtt_topic += '/{}/{}/{}'.format(r, id, 'state' if event_state is not None else 'config')
+            # prepare mqtt payload
+            mqtt_payload = event_state if event_state is not None else event_config
+            mqtt_payload = json.dumps(mqtt_payload).encode('utf-8')
+            log.debug('Publishing: topic={} payload={}'.format(mqtt_topic, mqtt_payload))
+            await mqtt.publish(mqtt_topic, mqtt_payload)
 
 async def deconz_message_reader(config: dict, message_queue: asyncio.Queue) -> None:
     log = logging.getLogger('deconz2mqtt.deconz_message_reader')
