@@ -15,7 +15,6 @@ mqtt:
   topic_prefix: deconz
   # You can map a device id to a custom topic, you can also extract json keys to have simpler messages
   map:
-    "2": ["PRINCE/laboratorio/c04/security/z0/data/door", "open"]
-    "3": ["PRINCE/laboratorio/c04/security/z1/data/door", "open"]
+     "2":[custom/topic/of/device, "filed_you_are_interested", "sub_field"]
 deconz:
   uri: "ws://localhost:443/ws"

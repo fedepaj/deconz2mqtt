@@ -64,7 +64,14 @@ is published to MQTT with topic `deconz/sensors/3/state` (`deconz` part of the t
                 key: "client_key.key"
         ```
         - If you do not inted to use certs you can comment the lines
-
+        - If you need to map device id to custom topics you can add the `map` field:
+        ```
+        mqtt:
+            ...
+            map:
+                "2":[custom/topic/of/device, "filed_you_are_interested", "sub_field", ...]
+                ...
+        ```
    * deCONZ websocket connection details
         ```
         deconz:
