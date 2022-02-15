@@ -39,7 +39,11 @@ def _config_value(config: dict, name: str, default = None):
 async def mqtt_publisher(config: dict, message_queue: asyncio.Queue) -> None:
     log = logging.getLogger('deconz2mqtt.mqtt_publisher')
     log.info('Connecting to MQTT...')
-    async with Client(**_config_value(config, 'client'),tls_context=_loadCerts4Client(_config_value(config,"certs"))) as mqtt:
+    try:
+        ssl_ctx=_loadCerts4Client(_config_value(config,"certs"))
+    except:
+        ssl_ctx=None
+    async with Client(**_config_value(config, 'client'),tls_context=ssl_ctx) as mqtt:
         log.info('Connected MQTT')
         while True:
             message = await message_queue.get()
@@ -68,20 +72,22 @@ async def mqtt_publisher(config: dict, message_queue: asyncio.Queue) -> None:
             if event_state is None and event_config is None:
                 log.debug('Message without state or config. Message={}'.format(message))
                 continue
-            mapping=_config_value(config, 'map')
+            id=str(id)
             # prepare mqtt payload
             mqtt_payload = event_state if event_state is not None else event_config
             # prepare mqtt topic
-            id=str(id)
-            if id in mapping:
-                # mapped device
-                mqtt_topic=mapping[id][0]
-                for elem in mapping[id][1:]:
-                    mqtt_payload = {str(elem): mqtt_payload[elem]}
-            else:
-                #fallback on default topic
-                mqtt_topic = _config_value(config, 'topic_prefix', 'deconz')
-                mqtt_topic += '/{}/{}/{}'.format(r, id, 'state' if event_state is not None else 'config')
+            mqtt_topic = _config_value(config, 'topic_prefix', 'deconz')
+            mqtt_topic += '/{}/{}/{}'.format(r, id, 'state' if event_state is not None else 'config')
+            # Try to map the device
+            try:
+                mapping=_config_value(config, 'map')
+                if id in mapping:
+                    # mapped device
+                    mqtt_topic=mapping[id][0]
+                    for elem in mapping[id][1:]:
+                        mqtt_payload = {str(elem): mqtt_payload[elem]}
+            except:
+                pass
             # econding the payload
             mqtt_payload = json.dumps(mqtt_payload).encode('utf-8')
             log.info('Publishing: topic={} payload={}'.format(mqtt_topic, mqtt_payload))
