@@ -71,11 +71,20 @@ async def mqtt_publisher(config: dict, message_queue: asyncio.Queue) -> None:
             if event_state is None and event_config is None:
                 log.debug('Message without state or config. Message={}'.format(message))
                 continue
-            # prepare mqtt topic
-            mqtt_topic = _config_value(config, 'topic_prefix', 'deconz')
-            mqtt_topic += '/{}/{}/{}'.format(r, id, 'state' if event_state is not None else 'config')
+            mapping=_config_value(config, 'map')
             # prepare mqtt payload
             mqtt_payload = event_state if event_state is not None else event_config
+            # prepare mqtt topic
+            if id in mapping:
+                # mapped device
+                mqtt_topic=mapping[id][0]
+                for elem in mapping[1:]:
+                    mqtt_payload = mqtt_payload[elem]
+            else:
+                #fallback on default topic
+                mqtt_topic = _config_value(config, 'topic_prefix', 'deconz')
+                mqtt_topic += '/{}/{}/{}'.format(r, id, 'state' if event_state is not None else 'config')
+            # econding the payload
             mqtt_payload = json.dumps(mqtt_payload).encode('utf-8')
             log.debug('Publishing: topic={} payload={}'.format(mqtt_topic, mqtt_payload))
             await mqtt.publish(mqtt_topic, mqtt_payload)
