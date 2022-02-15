@@ -1,5 +1,6 @@
 # deconz2mqtt
 Simple bridge between [Conbee](https://phoscon.de/en/conbee2) (its [deCONZ websocket API](https://dresden-elektronik.github.io/deconz-rest-doc/websocket/)) and MQTT broker.
+Based on [mikozak/deconz2mqtt](https://github.com/mikozak/deconz2mqtt) but using paho-mqtt (really its async wrapper [asyncio-mqtt](https://github.com/sbtinstruments/asyncio-mqtt)) instead of hbmqtt to support ssl/tls.
 
 
 *deconz2mqtt.py* reads deCONZ messages, parses them and converts to MQTT message.
@@ -20,6 +21,7 @@ is published to MQTT with topic `deconz/sensors/3/state` (`deconz` part of the t
 * *deconz2mqtt.yaml* - configuration file
 * Python (at least 3.7)
 * Running deCONZ REST API (at least 2.04.40)
+    - The most clean way to install it is to install the pre built image from [the phoscos app website](https://phoscon.de/en/conbee/sdcard)
 * Running MQTT broker
 
 ### Installation steps
@@ -48,19 +50,27 @@ is published to MQTT with topic `deconz/sensors/3/state` (`deconz` part of the t
     sudo curl -o /etc/deconz2mqtt.yaml 'https://raw.githubusercontent.com/mikozak/deconz2mqtt/master/deconz2mqtt.yaml'
     ```
 
-4. Edit configuration file installed in previous step. You need to verify/update at least two parameters
+4. Edit configuration file installed in previous step. You need to verify/update:
    * MQTT connection details
         ```
         mqtt:
             client:
-            uri: "mqtt://localhost"
+                hostname: "mqtt://localhost"
+                port:1883
+            certs:
+                certsPath: $POSITION/certs
+                ca: "ca.cert"
+                cert: "client_cert.cert"
+                key: "client_key.key"
         ```
+        - If you do not inted to use certs you can comment the lines
 
    * deCONZ websocket connection details
         ```
         deconz:
             uri: "ws://localhost:8080/ws"
         ```
+        - To get where you phoscon app is exposing the service you need to follow the first two steps of [this page](https://dresden-elektronik.github.io/deconz-rest-doc/getting_started/) to get an api key and then [this page](https://dresden-elektronik.github.io/deconz-rest-doc/endpoints/websocket/) go get the actual port.
 
 5. Run it
     ```

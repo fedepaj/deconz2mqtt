@@ -5,16 +5,13 @@ logging:
   websockets: WARN
 mqtt:
   client:
-    uri: "mqtt://localhost"
-    cleansession: True
-    # https://hbmqtt.readthedocs.io/en/latest/references/mqttclient.html#mqttclient-configuration
-    keep_alive: 10
-    ping_delay: 1
-    default_qos: 0
-    default_retain: False
-    auto_reconnect: True
-    reconnect_max_interval: 10
-    reconnect_retries: 3
+    hostname: "mqtt://localhost"
+    port: 1883
+  certs:
+    certsPath: $POSITION/certs
+    ca: "ca.cert"
+    cert: "client_cert.cert"
+    key: "client_key.key"
   topic_prefix: deconz
 deconz:
   uri: "ws://localhost:8080/ws"

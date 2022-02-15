@@ -1,12 +1,27 @@
 import asyncio
 import websockets
 import logging
-from hbmqtt.client import MQTTClient
-from hbmqtt.client import ConnectException
+#from hbmqtt.client import MQTTClient
+#from hbmqtt.client import ConnectException
+from asyncio_mqtt import Client, MqttError
 import json
 import yaml
 import io
 import argparse
+import os
+import ssl
+
+def _loadCerts4Client(client, certs):
+    log = logging.getLogger('deconz2mqtt.mqtt_publisher')
+    certsPath = os.path.expandvars(certs["certsPath"])
+    caPath = os.path.join(certsPath, certs["ca"])
+    certPath = os.path.join(certsPath, certs["cert"])
+    keyPath = os.path.join(certsPath, certs["key"])
+    log.info("Loading certs")
+    # Here we should create an sll context and pass to the constructor of the Client class, but i'm in a rush atm
+    client._client.tls_set(ca_certs=caPath,certfile=certPath,keyfile=keyPath,tls_version=ssl.PROTOCOL_TLSv1_2)
+    client._client.tls_insecure_set(True)
+    log.info("Certs ok")
 
 def _config_value(config: dict, name: str, default = None):
     names = name.split('.')
@@ -20,13 +35,14 @@ def _config_value(config: dict, name: str, default = None):
 
 async def mqtt_publisher(config: dict, message_queue: asyncio.Queue) -> None:
     log = logging.getLogger('deconz2mqtt.mqtt_publisher')
-    mqtt = MQTTClient(config=_config_value(config, 'client'))
+    # Instead of calling _loadCerts4Client we should create an ssl context ann pass it to the constructor
     log.info('Connecting to MQTT...')
     try:
-        await mqtt.connect(uri=_config_value(config, 'client.uri'), cleansession=_config_value(config, 'client.cleansession'))
-    except ConnectException as ce:
-        log.error('Can\'t connect to MQTT: {}'.format(ce))
-    log.info('Connected to MQTT')
+        mqtt = Client(**_config_value(config, 'client'))
+        _loadCerts4Client(mqtt,_config_value(config,"certs"))
+    except Exception as e:
+        logging.exception(e)
+    log.info('Connected MQTT')
     while True:
         message = await message_queue.get()
         message_json = json.loads(message)
